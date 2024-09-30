@@ -1,0 +1,14 @@
+﻿  Source.cpp
+D:\Programm Ingenery\C++\Seminars\Vector\Vector\Vector.cpp(107,1): warning C4267: инициализация: преобразование из "size_t" в "int"; возможна потеря данных
+D:\Programm Ingenery\C++\Seminars\Vector\Vector\Vector.cpp(95): message : во время компиляции функции-члена класс шаблон "void Vector<int>::resize(size_t,T)"
+          with
+          [
+              T=int
+          ]
+D:\Programm Ingenery\C++\Seminars\Vector\Vector\Source.cpp(65): message : выполняется компиляция ссылки на экземпляр шаблон функции "void Vector<int>::resize(size_t,T)"
+          with
+          [
+              T=int
+          ]
+D:\Programm Ingenery\C++\Seminars\Vector\Vector\Source.cpp(52): message : выполняется компиляция ссылки на экземпляр класс шаблон функции "Vector<int>"
+  Vector.vcxproj -> D:\Programm Ingenery\C++\Seminars\Vector\x64\Debug\Vector.exe
