@@ -27,6 +27,13 @@ public:
 		}
 	};
 
+	Vector(Vector&& other)
+	{
+		capacity = other.capacity;
+		size = other.size;
+		arr = std::exchange(other.arr, nullptr);
+	}
+
 	Vector& operator=(const Vector& another) {
 		if (this != &another)
 		{
@@ -40,6 +47,17 @@ public:
 		}
 		return *this;
 	};
+
+	Vector& operator=(Vector&& other)
+	{
+		if (this != &another)
+		{
+			capacity = other.capacity;
+			size = other.size;
+			arr = std::exchange(other.arr, nullptr);
+		}
+		return *this;
+	}
 
 	~Vector()
 	{
