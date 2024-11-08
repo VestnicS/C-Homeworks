@@ -50,7 +50,7 @@ public:
 
 	Vector& operator=(Vector&& other)
 	{
-		if (this != &another)
+		if (this != &other)
 		{
 			capacity = other.capacity;
 			size = other.size;
