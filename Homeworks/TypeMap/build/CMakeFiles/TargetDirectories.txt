@@ -1,0 +1,3 @@
+D:/Windows/Programm Ingenery/C++_High_Level/Homeworks/TypeMap/build/CMakeFiles/PC.dir
+D:/Windows/Programm Ingenery/C++_High_Level/Homeworks/TypeMap/build/CMakeFiles/edit_cache.dir
+D:/Windows/Programm Ingenery/C++_High_Level/Homeworks/TypeMap/build/CMakeFiles/rebuild_cache.dir
