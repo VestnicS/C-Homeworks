@@ -1,92 +1,83 @@
-#include "crop_box_filter.hpp"
+#include "crop_box_filter.h"
 
-// без cstring не работает memcpy
-#include <cstring>
-#include <memory>
+#include <cmath>
 #include <vector>
 
-namespace pointcloud_preprocessor
+namespace pointcloud 
+{
+namespace preprocessor 
 {
 
-CropBoxFilter::CropBoxFilter()
-: Filter("CropBoxFilter")
+std::unique_ptr<PointCloud> CropBoxFilter::ApplyImpl(PointCloud* pc) 
 {
-}
+    const std::size_t point_size = pc->PointSize();
+    const std::size_t total_points = pc->Size();
 
-// используется unique_ptr
-std::unique_ptr<PointCloud> CropBoxFilter::Apply(PointCloud* pc)
-{
-  size_t output_size = 0, output_points_count = 0;
-  std::vector<double> output(pc->size_ * pc->point_size_);
-  
-  // добавлен флаг для вывода сообщения один раз, а не для каждой точки
-  bool nan_logged = false;
+    std::vector<double> output;
+    output.reserve(total_points * point_size);
 
-  for (size_t global_offset = 0; global_offset + pc->point_size_ <= pc->size_ * pc->point_size_;
-       global_offset += pc->point_size_) {
-    std::vector<double> point(3);
-    std::memcpy(&point[0], &pc->points_[global_offset + 0], sizeof(double));
-    std::memcpy(&point[1], &pc->points_[global_offset + 1], sizeof(double));
-    std::memcpy(&point[2], &pc->points_[global_offset + 2], sizeof(double));
+    std::size_t output_points_count = 0;
+    bool nan_logged = false;
 
-    if (!std::isfinite(point[0]) || !std::isfinite(point[1]) || !std::isfinite(point[2])) {
-      // логгирование один раз
-      if (!nan_logged) {
-        logger_.log("Ignoring points containing NaN/infinite values (further such points will be silently skipped)");
-        nan_logged = true;
-      }
-      continue;
+    for (std::size_t i = 0; i < total_points; ++i) 
+    {
+        const double* point = pc->Point(i);
+        double x = point[0];
+        double y = point[1];
+        double z = point[2];
+
+        if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) 
+        {
+            if (!nan_logged) 
+            {
+                logger_.log("Ignoring points containing NaN/infinite values "
+                           "(further such points will be silently skipped)");
+                nan_logged = true;
+            }
+            continue;
+        }
+
+        bool inside = (x > box_params_.min_x && x < box_params_.max_x &&
+                       y > box_params_.min_y && y < box_params_.max_y &&
+                       z > box_params_.min_z && z < box_params_.max_z);
+
+        bool keep = box_params_.negative ? !inside : inside;
+        if (keep) 
+        {
+            for (std::size_t j = 0; j < point_size; ++j) 
+            {
+                output.push_back(point[j]);
+            }
+            ++output_points_count;
+        }
     }
 
-    bool point_is_inside = point[2] > param_.min_z && point[2] < param_.max_z &&
-                           point[1] > param_.min_y && point[1] < param_.max_y &&
-                           point[0] > param_.min_x && point[0] < param_.max_x;
-    if ((!param_.negative && point_is_inside) || (param_.negative && !point_is_inside)) {
-      memcpy(&output[output_size], &pc->points_[global_offset], pc->point_size_ * sizeof(double));
-      output_size += pc->point_size_;
-      output_points_count += 1;
-    }
-  }
-
-  output.resize(output_size);
-  // умный указатель
-  auto output_pc = std::make_unique<PointCloud>();
-  output_pc->points_ = std::move(output);
-  output_pc->pointcloud_type_ = pc->pointcloud_type_;
-  output_pc->size_ = output_points_count;
-  output_pc->point_size_ = pc->point_size_;
-  return output_pc;
+    auto result = std::make_unique<PointCloud>(pc->CloneMetadata());
+    result->AssignData(std::move(output), output_points_count);
+    return result;
 }
 
-void CropBoxFilter::SetParams(const FilterParametr& param)
+void CropBoxFilter::SetParamsImpl(const FilterParams& param) 
 {
+    auto new_params = CropBoxParams::FromFilterParams(param);
 
-  CropBoxParam new_param{};
+    if (box_params_ != new_params) 
+    {
+        logger_.log("[paramCallback] Setting the minimum point to: " +
+                    std::to_string(new_params.min_x) + " " +
+                    std::to_string(new_params.min_y) + " " +
+                    std::to_string(new_params.min_z));
+        logger_.log("[paramCallback] Setting the maximum point to: " +
+                    std::to_string(new_params.max_x) + " " +
+                    std::to_string(new_params.max_y) + " " +
+                    std::to_string(new_params.max_z));
+        logger_.log("[paramCallback] Setting the filter negative flag to: " +
+                    std::string(new_params.negative ? "true" : "false"));
+        box_params_ = new_params;
+    }
 
-  new_param.min_x = param.GetParam("min_x", new_param.min_x);
-  new_param.max_x = param.GetParam("max_x", new_param.max_x);
-  new_param.min_y = param.GetParam("min_y", new_param.min_y);
-  new_param.max_y = param.GetParam("max_y", new_param.max_y);
-  new_param.min_z = param.GetParam("min_z", new_param.min_z);
-  new_param.max_z = param.GetParam("max_z", new_param.max_z);
-  
-  // negative должен читать negative, а не max_z
-  new_param.negative = static_cast<bool>(param.GetParam("negative", param_.negative ? 1 : 0));
-  
-  // убрана проверка нуля, так как эти значения корректны
-  if (param_.min_x != new_param.min_x || param_.max_x != new_param.max_x ||
-      param_.min_y != new_param.min_y || param_.max_y != new_param.max_y ||
-      param_.min_z != new_param.min_z || param_.max_z != new_param.max_z ||
-      param_.negative != new_param.negative) {
-    logger_.log("[paramCallback] Setting the minimum point to: " +
-      std::to_string(new_param.min_x) + " " + std::to_string(new_param.min_y) + " " + std::to_string(new_param.min_z));
-    logger_.log("[paramCallback] Setting the maximum point to: " +
-      std::to_string(new_param.max_x) + " " + std::to_string(new_param.max_y) + " " + std::to_string(new_param.max_z));
-    // корректное приведение к string и поправка приоритета
-    logger_.log("[paramCallback] Setting the filter negative flag to: " + std::string(new_param.negative ? "true" : "false"));
-    param_ = new_param;
-  }
-  Filter::SetParams(param);
+    params_ = param;
 }
 
-}  // namespace pointcloud_preprocessor
+}
+} 
